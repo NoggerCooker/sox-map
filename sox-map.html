@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>München – Natriumdampflampen aus OpenStreetMap</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+html,body,#map{height:100%;margin:0}
+.panel{position:absolute;z-index:1000;top:12px;left:55px;width:min(440px,calc(100% - 85px));
+background:#fff;padding:14px;border-radius:9px;box-shadow:0 2px 14px #0004;font:14px Arial}
+h3{margin:0 0 8px}.muted{font-size:12px;color:#666;line-height:1.35}
+button{padding:8px 12px;margin:8px 5px 8px 0;border:1px solid #aaa;border-radius:5px;background:#f7f7f7;cursor:pointer}
+#status{margin:7px 0;line-height:1.4}.error{color:#b00020}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:4px}
+.legend{line-height:1.7} table{border-collapse:collapse}td{padding-right:12px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="panel">
+<h3>🟠 Natriumdampflampen – München</h3>
+<div id="status">Bereit.</div>
+<button id="load">Daten laden</button>
+<button id="turbo">In Overpass Turbo öffnen</button>
+<div id="stats"></div>
+<div class="muted">
+Datenquelle: OpenStreetMap. Die Karte zeigt nur Straßenlampen, bei denen
+OSM einen Natrium-Leuchtmitteltyp erfasst hat. Eine fehlende Markierung
+bedeutet nicht, dass die reale Lampe kein Natrium verwendet.
+</div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map=L.map('map').setView([48.137,11.575],11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:20,attribution:'© OpenStreetMap-Mitwirkende'}).addTo(map);
+const layer=L.layerGroup().addTo(map);
+
+// Münchner Verwaltungsrelation 62428 -> Overpass Area 3600062428
+// Absichtlich keine (?i)-Regex und keine dynamische Area-Suche:
+// dadurch deutlich robuster als die vorherige Version.
+
+
+
+const Q=`[out:json][timeout:900];
+
+(
+  // lamp_type
+  nwr["highway"="street_lamp"]
+     ["lamp_type"~"^low_pressure_sodium$|^low-pressure_sodium$|^SOX$|^sodium_vapor$",i];
+
+  // light:method
+  nwr["highway"="street_lamp"]
+     ["light:method"~"^low_pressure_sodium$|^low-pressure_sodium$|^SOX$|^sodium_vapor$",i];
+
+  // lamp_model – bekannte SOX/LPS-Bezeichnungen
+  nwr["highway"="street_lamp"]
+     ["lamp_model"~"SOX|low.?pressure.?sodium",i];
+);
+
+out center;`;
+
+
+
+const endpoints=[
+"https://overpass.private.coffee/api/interpreter",
+"https://overpass-api.de/api/interpreter"
+];
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function typeOf(t){
+ const s=[t.lamp_type,t["light:method"],t.light_source].filter(Boolean).join("|").toLowerCase();
+ if(s.includes("low_pressure_sodium")||s.includes("sox")) return "Natrium-Niederdruck";
+ if(s.includes("high_pressure_sodium")||s.includes("hps")||s.includes("son")) return "Natrium-Hochdruck";
+ return "Natrium";
+}
+function popup(e,type){
+ let rows="";
+ for(const [k,v] of Object.entries(e.tags||{}))
+   rows+=`<tr><td><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`;
+ return `<b>${type}</b><br><table>${rows}</table>
+ <a target="_blank" href="https://www.openstreetmap.org/node/${e.id}">OSM-Objekt öffnen</a>`;
+}
+
+async function request(url){
+ const full=url+"?data="+encodeURIComponent(Q);
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),175000);
+ try{
+   const r=await fetch(full,{method:"GET",headers:{"Accept":"application/json"},
+     cache:"no-store",signal:controller.signal});
+   if(!r.ok){
+     const text=await r.text();
+     throw new Error("HTTP "+r.status+(text?": "+text.slice(0,180):""));
+   }
+   return await r.json();
+ } finally {clearTimeout(timer);}
+}
+
+async function load(){
+ layer.clearLayers();
+ document.getElementById("stats").innerHTML="";
+ document.getElementById("status").textContent="Abfrage läuft …";
+ let errors=[];
+ for(const ep of endpoints){
+   try{
+     document.getElementById("status").textContent=
+       "Verbinde mit Overpass: "+new URL(ep).hostname+" …";
+     const data=await request(ep);
+     const arr=data.elements||[];
+     let hp=0,lp=0,other=0;
+     const markers=[];
+     for(const e of arr){
+
+
+
+
+
+       if(e.type!=="node"||e.lat==null||e.lon==null) continue;
+       const type=typeOf(e.tags||{});
+
+
+       if(type==="Natrium-Hochdruck") {
+         hp++;
+
+
+       const m=L.circleMarker([e.lat,e.lon],{
+         radius:5,weight:1,fillOpacity:.9
+       }).bindPopup(popup(e,type));
+       m.addTo(layer); markers.push(m);
+
+
+       } else if(type==="Natrium-Niederdruck") {
+         lp++
+
+
+
+       const m = L.circleMarker([e.lat, e.lon], {
+         radius: 5,
+         weight: 1,
+         color: "#000000",
+         fillColor: "#FFD700",
+         fillOpacity: 0.9
+       }).bindPopup(popup(e, type));
+       m.addTo(layer);
+       markers.push(m);
+
+
+
+       } else {
+         other++;
+
+
+
+
+       const m=L.circleMarker([e.lat,e.lon],{
+         radius:5,weight:1,fillOpacity:.9
+       }).bindPopup(popup(e,type));
+       m.addTo(layer); markers.push(m);
+
+
+
+
+       }
+
+
+       
+
+
+
+
+
+     }
+     document.getElementById("status").textContent=
+       "Fertig – "+markers.length+" passende OSM-Lampen gefunden.";
+     document.getElementById("stats").innerHTML=
+       `<div class="legend">
+       <i></i> Natrium-Hochdruck: <b>${hp}</b><br>
+       <i></i> Natrium-Niederdruck: <b>${lp}</b><br>
+       <i></i> Natrium, Typ nicht genauer angegeben: <b>${other}</b>
+       </div>`;
+     if(markers.length) map.fitBounds(L.featureGroup(markers).getBounds().pad(.04));
+     return;
+   }catch(e){
+     errors.push(new URL(ep).hostname+": "+e.message);
+   }
+ }
+ document.getElementById("status").innerHTML=
+   `<span class="error"><b>Overpass konnte nicht abgefragt werden.</b><br>`+
+   errors.map(esc).join("<br>")+
+   `</span>`;
+}
+
+const turboQ=encodeURIComponent(Q);
+document.getElementById("turbo").onclick=()=>{
+ window.open("https://overpass-turbo.eu/?C="+encodeURIComponent("{{style:\nnode[natural=sodium];\n}}")+
+ "&Q="+turboQ,"_blank");
+};
+document.getElementById("load").onclick=load;
+load();
+</script>
+</body>
+</html>

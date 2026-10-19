@@ -13,6 +13,8 @@ Die Anwendung läuft als einzelne HTML-Datei. Sie fragt die Overpass API direkt 
   - Orange: Natrium-Hochdruck
   - Rot: Natrium-Niederdruck
   - Schwarz: Typ unbekannt
+- Marker-Clustering für große weltweite Ergebnismengen
+- einklappbares Bedienmenü für mobile Ansichten
 - Popups mit den vollständigen OSM-Tags
 - direkter Link zum jeweiligen OSM-Objekt
 - Anzeige des Ladezustands während der Overpass-Abfrage
@@ -54,6 +56,24 @@ http://127.0.0.1:8000/sox-map.html
 ```
 
 Der Server kann mit `Ctrl+C` beendet werden.
+
+## Mobile Bedienung
+
+Auf schmalen Bildschirmen wird das Bedienmenü standardmäßig eingeklappt geöffnet, damit die Karte sichtbar bleibt. Über die Schaltfläche `Menü öffnen` kann es eingeblendet und anschließend wieder mit `Menü schließen` verborgen werden.
+
+Auf größeren Bildschirmen bleibt das Bedienmenü dauerhaft sichtbar.
+
+## Marker-Clustering
+
+Die Anwendung verwendet `Leaflet.markercluster` `1.5.3`. Einzelne Marker werden bei kleiner Zoomstufe zu Clustern zusammengefasst. Beim Hineinzoomen lösen sich die Cluster schrittweise auf.
+
+Das Clustering nutzt:
+
+- verzögertes Hinzufügen großer Marker-Mengen (`chunkedLoading`)
+- eine maximale Cluster-Reichweite von 50 Pixeln
+- keine zusätzliche Deckkraftfläche beim Überfahren eines Clusters
+
+Die Bibliothek wird wie Leaflet selbst über `unpkg.com` geladen.
 
 ## Datenabfrage
 
@@ -109,6 +129,7 @@ Ways und Relations werden derzeit nicht als Marker dargestellt. Obwohl die Overp
 ## Technische Hinweise
 
 - Leaflet `1.9.4` wird von `unpkg.com` geladen.
+- Leaflet.markercluster `1.5.3` wird von `unpkg.com` geladen.
 - Die Hintergrundkacheln stammen von OpenStreetMap.
 - OSM-Tag-Werte werden vor der Verwendung in Popups HTML-escaped.
 - Die Antwortgröße wird nach dem Empfang des vollständigen JSON-Texts in Bytes ermittelt.
@@ -123,6 +144,7 @@ OpenStreetMap ist gemeinschaftlich gepflegt. Fehlende Treffer bedeuten nicht, da
 
 - Kartendaten: [OpenStreetMap](https://www.openstreetmap.org/copyright)
 - Kartenbibliothek: [Leaflet](https://leafletjs.com/)
+- Clustering: [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster)
 - Abfrageschnittstelle: [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
 
 Die jeweiligen Nutzungsbedingungen und Attributionsanforderungen der externen Dienste sind zu beachten.

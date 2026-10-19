@@ -5,12 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Natriumdampflampen aus OpenStreetMap</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <style>
 :root{--high:#ff9800;--low:#e53935;--unknown:#000}
 html,body,#map{height:100%;margin:0}
 .panel{position:absolute;z-index:1000;top:12px;left:55px;width:min(470px,calc(100% - 85px));
 background:#fff;padding:14px;border-radius:9px;box-shadow:0 2px 14px #0004;font:14px Arial}
-h3{margin:0 0 8px}.muted{font-size:12px;color:#666;line-height:1.35}
+.panel-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+h3{margin:0 0 8px}.panel-toggle{display:none;white-space:nowrap;margin:0;padding:6px 9px}
+.muted{font-size:12px;color:#666;line-height:1.35}
 button{padding:8px 12px;margin:8px 5px 8px 0;border:1px solid #aaa;border-radius:5px;background:#f7f7f7;cursor:pointer}
 button:disabled{cursor:wait;opacity:.65}
 #status{margin:7px 0;line-height:1.4}.error{color:#b00020}
@@ -22,12 +26,22 @@ button:disabled{cursor:wait;opacity:.65}
 .legend .high{background:var(--high)}.legend .low{background:var(--low)}.legend .unknown{background:var(--unknown)}
 .meta{font-size:12px;color:#555;margin-top:5px}
 table{border-collapse:collapse}td{padding-right:12px;vertical-align:top}
+@media (max-width:640px){
+ .panel{top:8px;left:8px;right:8px;width:auto;padding:10px;border-radius:8px}
+ .panel-toggle{display:block}
+ .panel.collapsed #panelBody{display:none}
+ h3{font-size:16px;margin:2px 0 0}
+}
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div class="panel">
+<div class="panel" id="controlPanel">
+<div class="panel-header">
 <h3>🟠 Natriumdampflampen – weltweit</h3>
+<button id="togglePanel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="panelBody">Menü</button>
+</div>
+<div id="panelBody">
 <div id="status">Bereit.</div>
 <div id="progress" class="progress" hidden><div id="progressBar" class="progress-bar"></div></div>
 <button id="load">Daten laden</button>
@@ -39,12 +53,30 @@ OSM einen Natrium-Leuchtmitteltyp erfasst hat. Eine fehlende Markierung
 bedeutet nicht, dass die reale Lampe kein Natrium verwendet.
 </div>
 </div>
+</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
 const map=L.map('map').setView([20,0],2);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 maxZoom:20,attribution:'© OpenStreetMap-Mitwirkende'}).addTo(map);
-const layer=L.layerGroup().addTo(map);
+const layer=L.markerClusterGroup({
+ chunkedLoading:true,
+ chunkInterval:200,
+ chunkDelay:50,
+ showCoverageOnHover:false,
+ maxClusterRadius:50
+}).addTo(map);
+
+const panel=document.getElementById('controlPanel');
+const togglePanel=document.getElementById('togglePanel');
+function setPanelCollapsed(collapsed){
+ panel.classList.toggle('collapsed',collapsed);
+ togglePanel.setAttribute('aria-expanded',String(!collapsed));
+ togglePanel.textContent=collapsed?'Menü öffnen':'Menü schließen';
+}
+if(window.matchMedia('(max-width:640px)').matches) setPanelCollapsed(true);
+togglePanel.onclick=()=>setPanelCollapsed(!panel.classList.contains('collapsed'));
 
 const OVERPASS_TIMEOUT_SECONDS=120;
 const REQUEST_TIMEOUT_MS=(OVERPASS_TIMEOUT_SECONDS+10)*1000;
@@ -144,7 +176,7 @@ async function load(){
          const marker=L.circleMarker([e.lat,e.lon],{
            radius:5,weight:1,color:style.color,fillColor:style.fillColor,fillOpacity:.9
          }).bindPopup(popup(e,type));
-         marker.addTo(layer);
+         layer.addLayer(marker);
          markers.push(marker);
        }
        progressBar.classList.remove("active");
@@ -154,7 +186,7 @@ async function load(){
          <i class="high"></i> Natrium-Hochdruck: <b>${hp}</b><br>
          <i class="low"></i> Natrium-Niederdruck: <b>${lp}</b><br>
          <i class="unknown"></i> Typ unbekannt: <b>${other}</b>
-         </div><div class="meta">Antwort: <b>${formatBytes(response.bytes)}</b> · OSM-Elemente: <b>${arr.length}</b> · dargestellte Knoten: <b>${markers.length}</b></div>`;
+         </div><div class="meta">Antwort: <b>${formatBytes(response.bytes)}</b> · OSM-Elemente: <b>${arr.length}</b> · dargestellte Knoten: <b>${markers.length}</b> · Clustering aktiv</div>`;
        if(markers.length) map.fitBounds(L.featureGroup(markers).getBounds().pad(.04));
        return;
      }catch(e){
